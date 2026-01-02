@@ -38,14 +38,12 @@ func RegisterHandlers() {
 		case http.MethodPost:
 			msg, err := io.ReadAll(r.Body)
 			if err != nil || len(msg) == 0 {
-				w.WriteHeader(http.StatusBadRequest)
+				http.Error(w, "Invalid request body", http.StatusBadRequest)
 				return
 			}
 			write(string(msg))
 		default:
-			_, _ = w.Write([]byte("method not allowed"))
-			w.WriteHeader(http.StatusMethodNotAllowed)
-
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
 	})

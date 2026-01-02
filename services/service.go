@@ -25,7 +25,7 @@ func startService(ctx context.Context, name string, host string, port string) co
 	// 返回这个可取消的ctx, 让调用方可以等待服务的结束
 	ctx, cancel := context.WithCancel(ctx)
 	var srv http.Server
-	srv.Addr = host + ":" + port
+	srv.Addr = host + port
 
 	// 1. 启动该服务, 如果启动失败, 直接结束该服务
 	go func() {
@@ -35,7 +35,7 @@ func startService(ctx context.Context, name string, host string, port string) co
 
 	// 2. 手动关闭该服务
 	go func() {
-		fmt.Printf("服务[%s]已启动, 监听地址%s:%s\n", name, host, port)
+		fmt.Printf("服务[%s]已启动, 监听地址%s%s\n", name, host, port)
 		fmt.Printf("按任意键退出[%s]服务...\n", name)
 		var s string
 		_, _ = fmt.Scanln(&s)
