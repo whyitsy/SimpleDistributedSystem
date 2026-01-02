@@ -28,11 +28,11 @@ func (fl fileLog) Write(data []byte) (int, error) {
 
 // Run 初始化日志写入路径
 func Run(destination string) {
-	log = stlog.New(fileLog(destination), "GoLog ", stlog.LstdFlags)
+	log = stlog.New(fileLog(destination), "[Go]: ", stlog.LstdFlags)
 }
 
-// RegisterHandler 注册日志处理器, 用于接收POST类型的HTTP请求并记录日志
-func RegisterHandler() {
+// RegisterHandlers 注册日志处理器, 用于单独启动的日志Web服务
+func RegisterHandlers() {
 	http.HandleFunc("/log", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodPost:
@@ -43,7 +43,10 @@ func RegisterHandler() {
 			}
 			write(string(msg))
 		default:
+			_, _ = w.Write([]byte("method not allowed"))
 			w.WriteHeader(http.StatusMethodNotAllowed)
+
+			return
 		}
 	})
 }

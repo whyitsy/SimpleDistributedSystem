@@ -31,9 +31,36 @@
 1. 创建服务注册和取消服务
 2. 日志服务
 
+### 启动服务
+1. 启动服务的公共功能独立到services包中. 提供`Start`函数启动HTTP服务.
+2. 每个服务都需要单独启动, 然后注册到服务注册中心. 创建`cmd`目录存放各个服务的启动代码.
+
+#### 使用默认的HTTP实例
+`"net/http"`包会导出三个默认实例:
++ `http.DefaultServeMux` : 默认的多路复用器, 用于注册路由和处理请求.
++ `http.DefaultClient` : 默认的HTTP客户端实例, 用于发送HTTP请求.
++ `http.DefaultTransport` : 默认的HTTP传输实现, 被`http.DefaultClient`使用.
+
+所以引入包后可以直接使用方法, 例如:
+```go 
+import "net/http"
+http.HandleFunc("/", handler) // 使用默认的多路复用器注册路由
+http.ListenAndServe(":8080", nil) // 使用默认的多路复用器启动HTTP服务器
+
+http.Get("http://example.com") // 使用默认的HTTP客户端发送GET请求
+```
+
+所以可以将`http.HandleFunc`和`http.ListenAndServe`分开定义和使用.
+
+#### 使用context进行协程间通信和管理
+每个服务都会独立启动, 使用`context`包管理服务的生命周期.  
+项目中使用了`context.WithCancel`创建可取消的上下文并返回, 在对应逻辑中调用`cancel`函数取消上下文.  
+启动程序通过监听返回的`cancelContext`: `<-cancelContext.Done()` 来等待取消信号, 然后优雅关闭服务.
+
+
 ### 日志服务
 
 #### 创建日志服务
-1. 封装log服务, 自定义log所使用的io.Writer接口: `fileLog`
+1. 封装log服务, 自定义log所使用的io.Writer接口的实现: `fileLog`
 2. 封装初始化log的方法, 指定日志写入的路径
 3. 封装对外提供的HTTP Handler, 让每个服务管理自己的Web服务注册. 只处理POST请求的服务.
