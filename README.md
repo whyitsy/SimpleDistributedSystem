@@ -64,10 +64,10 @@ http.Get("http://example.com") // 使用默认的HTTP客户端发送GET请求
 
 所以可以将`http.HandleFunc`和`http.ListenAndServe`分开定义和使用.
 
-### 服务注册
+### 服务注册与取消
 项目中的服务使用统一的方式进行启动, 只需要在启动后将其添加到注册中心即可.  
-在`registry.client`中封装了注册服务的方法`RegisterService`, 通过HTTP POST请求将服务信息发送到注册中心. 这样在`service.Start`函数中, 启动服务后调用`registryclient.RegisterService`即可玩成注册服务的功能.
-
+注册：在`registry.client`中封装了注册服务的方法`RegisterService`, 通过HTTP POST请求将服务信息发送到注册中心. 这样在`service.Start`函数中, 启动服务后调用`registryclient.RegisterService`即可玩成注册服务的功能.  
+取消：取消和注册类似, 在结束之前使用HTTP DELETE请求将服务信息发送到注册中心, 注册中心收到请求后从服务列表中删除对应的服务.
 > HTTP POST请求的body参数要求是io.Reader接口类型, 该类型要求实现的Read方法能从字节流中读取数据. 使用`bytes.NewBuffer`创建一个可读可写的buffer, 然后使用`json.NewEncoder`将结构体编码为JSON格式并写入buffer中, 最后将buffer作为body参数传递给HTTP请求.
 
 

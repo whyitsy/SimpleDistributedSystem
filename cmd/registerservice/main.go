@@ -30,7 +30,7 @@ func main() {
 		fmt.Printf("服务注册中心已启动, 监听地址%s\n", registry.ServerPort)
 		fmt.Printf("按任意键退出服务注册中心...\n")
 		var s string
-		_, _ = fmt.Scanln(&s)
+		_, _ = fmt.Scan(&s)
 		fmt.Println("正在关闭服务注册中心...")
 		_ = srv.Shutdown(ctx)
 		cancel()

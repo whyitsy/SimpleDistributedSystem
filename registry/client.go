@@ -37,3 +37,33 @@ func RegisterService(re RegistrationEntry) error {
 	}
 	return nil
 }
+
+func DeregisterService(re RegistrationEntry) error {
+	// http包没有直接提供DELETE方法, 需要通过NewRequest来创建请求.
+	buffer := bytes.NewBuffer(nil)
+	encoder := json.NewEncoder(buffer)
+	if err := encoder.Encode(re); err != nil {
+		return err
+	}
+	req, err := http.NewRequest(http.MethodDelete, ServicesURL, buffer)
+	if err != nil {
+		return err
+	}
+	req.Header.Add("Content-Type", "application/json")
+
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			log.Printf("关闭服务注销响应Body失败, %s:%s\n", re.ServiceName, re.ServiceURL)
+		}
+	}(res.Body)
+
+	if res.StatusCode != http.StatusOK {
+		return fmt.Errorf("服务注销失败, 状态码: %d, 服务: %s:%s", res.StatusCode, re.ServiceName, re.ServiceURL)
+	}
+	return nil
+}

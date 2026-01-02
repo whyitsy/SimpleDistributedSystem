@@ -2,6 +2,7 @@ package registry
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"sync"
@@ -20,13 +21,27 @@ type registry struct {
 	mutex *sync.Mutex
 }
 
-// 添加注册服务的方法
+// 注册服务的方法
 func (r *registry) addService(entry RegistrationEntry) error {
 	r.mutex.Lock()
 	r.services = append(r.services, entry)
 	r.mutex.Unlock()
 
 	return nil
+}
+
+// 取消注册服务的方法
+func (r *registry) removeService(entry RegistrationEntry) error {
+	for i, e := range r.services {
+		if e.ServiceName == entry.ServiceName && e.ServiceURL == entry.ServiceURL {
+			// 找到匹配的服务, 删除它
+			r.mutex.Lock()
+			r.services = append(r.services[:i], r.services[i+1:]...)
+			r.mutex.Unlock()
+			return nil
+		}
+	}
+	return fmt.Errorf("service with name %s and URL %s not found", entry.ServiceName, entry.ServiceURL)
 }
 
 // reg var声明并实例化一个包级的registry变量
@@ -57,7 +72,20 @@ func (rs *RegistryService) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Failed to register service", http.StatusInternalServerError)
 			return
 		}
-		// 这段结束后会自动返回200 OK 并关闭连接
+	// 这段结束后会自动返回200 OK 并关闭连接
+	case http.MethodDelete:
+		var entry RegistrationEntry
+		err := json.NewDecoder(r.Body).Decode(&entry)
+		if err != nil {
+			http.Error(w, "Invalid request body", http.StatusBadRequest)
+			return
+		}
+		log.Printf("Removing service: %+v\n", entry)
+		err = reg.removeService(entry)
+		if err != nil {
+			http.Error(w, "Failed to unregister service", http.StatusInternalServerError)
+			return
+		}
 	default:
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	}
