@@ -34,7 +34,8 @@ func main() {
 		fmt.Println("正在关闭服务注册中心...")
 		_ = srv.Shutdown(ctx)
 		cancel()
-		fmt.Println("服务注册中心已关闭")
+
 	}()
 	<-ctx.Done()
+	fmt.Println("服务注册中心已关闭")
 }
