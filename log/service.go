@@ -28,7 +28,7 @@ func (fl fileLog) Write(data []byte) (int, error) {
 
 // Run 初始化日志写入路径
 func Run(destination string) {
-	log = stlog.New(fileLog(destination), "[Go]: ", stlog.LstdFlags)
+	log = stlog.New(fileLog(destination), "[Go]- ", stlog.LstdFlags)
 }
 
 // RegisterHandlers 注册日志处理器, 用于单独启动的日志Web服务

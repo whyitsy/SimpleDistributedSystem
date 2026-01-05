@@ -12,10 +12,12 @@ import (
 func main() {
 	log.Run("distributed_go.log") // 初始化日志服务, 指定日志文件路径
 	host, port := "localhost", ":10001"
-	serviceAddress := fmt.Sprintf("%v%v", host, port)
+	serviceAddress := fmt.Sprintf("http://%v%v", host, port)
 	re := registry.RegistrationEntry{
-		ServiceName: registry.LogService,
-		ServiceURL:  serviceAddress,
+		ServiceName:      registry.LogService,
+		ServiceURL:       serviceAddress,
+		RequiredServices: []registry.ServiceName{},
+		ServiceUpdateURL: serviceAddress + "/services",
 	}
 	ctx, err := services.Start(context.Background(), host, port, re, log.RegisterHandlers)
 	if err != nil {

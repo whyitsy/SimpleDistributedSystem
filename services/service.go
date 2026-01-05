@@ -12,15 +12,15 @@ import (
 // 这里的服务是公共服务, 供其他模块调用的
 
 // Start 启动一个http服务, 并注册处理器. 这是一个通用的服务启动函数, 所以单独放在service包中
-func Start(ctx context.Context, host, port string, reg registry.RegistrationEntry, registerHandler func()) (context.Context, error) {
+func Start(ctx context.Context, host, port string, re registry.RegistrationEntry, registerHandler func()) (context.Context, error) {
 	// 1. 注册处理器
 	registerHandler()
 
 	// 2. 启动服务
-	ctx = startService(ctx, reg, host, port)
+	ctx = startService(ctx, re, host, port)
 
 	// 3. 注册服务
-	if err := registry.RegisterService(reg); err != nil {
+	if err := registry.RegisterService(re); err != nil {
 		return ctx, err
 	}
 

@@ -15,14 +15,10 @@
 │   ├── 服务注册
 │   ├── 健康检查
 │   └── 服务发现
-├── 用户门户
-│   ├── Api 网关
-│   └── Web 服务
+│  
 ├── 日志服务
 │   └── 集中式日志
 └── 业务服务
-    ├── 业务逻辑
-    └── 数据持久化
 ```
 
 使用 Go 语言构建，HTTP进行数据通信，JSON作为数据交换格式。
@@ -32,10 +28,23 @@
 > 注: 文档的顺序和代码实现的顺序可能不一致.
 
 ### 注册中心
-这里注册中心本质就是维护在内存中的一个slice, 提供锁和添加、删除方法, 调用http服务添加服务到slice中. slice中存储的是自定义的Service结构体, 包含服务的名称和URL.
-1. 定义Service结构体, 包含服务名称和URL.
-2. 定义存储服务的`registry`结构体, 包含服务列表和读写锁, 提供添加服务的方法.
-3. 定义`RegistryService`结构体, 实现`http.Handle`接口, 处理服务注册的HTTP请求.
+注册中心的功能职责：将web服务添加到中心节点, 其他服务就可以从该节点获取依赖的服务信息和变动信息.
+1. 服务注册：一个线程访问安全的slice, 用于存储注册的服务信息(服务名称和url). 提供注册和取消注册的HTTP接口.
+2. 服务发现：注册服务时, 根据服务的依赖信息, 遍历slice找到存在的依赖服务, 通过回调该注册服务的更新接口将依赖服务的信息发送给注册服务.
+3. 依赖变更通知：当依赖服务上线或下线时, 需要通知通知对应的服务. 
+4. 健康检查：定期调用已注册服务的健康检查接口, 如果服务不可用则将其从注册列表中删除, 并通知依赖该服务的其他服务. 
+所有服务都需要提供两个接口:`update`和`healthcheck`, 分别用于接收依赖服务的更新信息和健康检查.  
+
+服务存储：收到依赖的服务信息后, 通过`provider模式`维护依赖服务的信息. 需要时从provider中获取，可以在获取时做负载均衡.
+
+#### 注册中心实现
+本质就是维护在内存中的一个slice, 提供线程安全的添加、删除方法以及对应的接口. 存储的是自定义的Service结构体, 包含服务的名称和URL.
+1. 定义存储slice的结构体, `slice`和`RWMutex`. 
+2. 定义添加和删除服务请求的参数类型, 包含`ServiceName`、`ServiceURL`、`[]RequiredServices`和`ServiceUpdateURL`.
+3. 定义注册和取消注册的方法并作为对应的api接口处理函数.
+   1. 定义更新依赖服务请求的参数类型, 包含`Added`和`Removed`两个slice.
+   2. 将服务信息添加到注册列表中, 然后遍历依赖的服务列表, 查找已注册的服务并将其信息通过POST请求发送到该次注册服务的`update`接口.
+   3. 有服务变动时, 就需要遍历已注册的服务, 查找依赖该服务的服务, 并将变动的信息通过POST请求发送到对应服务的`update`接口.
 4. 在`cmd/registerservice/main.go`中配置并启动注册服务的HTTP服务器.
 
 > 1. 服务注册中心的启动和其他服务的启动使用不同的方式进行配置。 注册中心是实现`http.Handle`接口来处理HTTP请求, 其他服务是使用`http.HandleFunc`处理HTTP请求. 本质一样, HandleFunc基于Handle的.
@@ -75,7 +84,30 @@ http.Get("http://example.com") // 使用默认的HTTP客户端发送GET请求
 启动程序通过监听返回的`cancelContext`: `<-cancelContext.Done()` 来等待取消信号, 然后优雅关闭服务.
 
 ### 服务发现
-这个模块比较复杂, 主要是处理服务之间的依赖调用, 依赖服务变化的通知等.
+1. 扩展基础的服务注册时使用的结构体, 提供依赖的服务列表和服务更新URL:
+    ```go
+    type RegistrationEntry struct {
+        ServiceName      ServiceName
+        ServiceURL       string
+        RequiredServices []ServiceName // 依赖的服务, 在注册时请求这些服务的URL
+        ServiceUpdateURL string        // 服务自身配置的更新URL, 供注册中心调用
+    }
+    ```
+2. 在注册自身后, 注册中心会将依赖信息POST到`ServiceURL+ServiceUpdateURL`这个地址, 携带更新的服务列表patch.
+    ```go
+    type patchEntry struct {
+        Name ServiceName
+        URL  string
+    }
+    
+    type patch struct {
+        Added   []patchEntry
+        Removed []patchEntry
+    }
+    ```
+3. 服务收到patch后, 需要通过`providers`维护自己的依赖服务列表, 提供更新和获取`provider`的方法. 这个provider就是提供服务的URL.
+
+
 
 ### 日志服务
 
