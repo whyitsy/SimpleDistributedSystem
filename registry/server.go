@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"sync"
+	"time"
 )
 
 const ServerPort = ":10000"
@@ -21,6 +22,60 @@ type registry struct {
 	services []RegistrationEntry
 	// 上面的slice字段是线程不安全的, 需要加锁保护
 	mutex *sync.RWMutex
+}
+
+// healthCheck 一段无限循环的函数, 定期请求服务的健康检查端点, 以此判断服务是否存活
+// 逻辑是：尝试3次健康检查, 一次成功就通过, 失败了就让该服务下线, 如果后续又恢复了, 则重新注册.
+func (r *registry) healthCheck(freq time.Duration) bool {
+	for {
+		wg := sync.WaitGroup{}
+		for _, service := range r.services {
+			wg.Add(1)
+			go func(re RegistrationEntry) {
+				defer wg.Done()
+				success := true
+				for attempts := 0; attempts < 3; attempts++ {
+					resp, err := http.Get(re.HeartbeatURL)
+					// 下面这个逻辑是让我学到了if/else if/else的流程控制. 如果失败就走下面处理失败的逻辑, 成功就跳出循环.
+					if err != nil || resp.StatusCode != http.StatusOK {
+						log.Printf("Heartbeat failed for service: %s, error: %s\n", re.ServiceName, err.Error())
+					} else if resp.StatusCode == http.StatusOK {
+						// 心跳成功
+						if !success {
+							// 服务恢复了, 重新注册
+							log.Printf("Service %s has recovered. Re-registering.\n", re.ServiceName)
+							err := r.addService(re)
+							if err != nil {
+								log.Printf("Failed to re-register service %s: %v\n", re.ServiceName, err)
+							}
+						}
+						break
+					}
+					log.Printf("Heartbeat attempt %d failed for service: %s\n", attempts+1, re.ServiceName)
+					if success {
+						// 第一次失败, 标记为失败
+						success = false
+						err := r.removeService(re)
+						if err != nil {
+							log.Printf("Failed to re-register service %s: %v\n", re.ServiceName, err)
+						}
+					}
+					time.Sleep(1 * time.Second)
+				}
+			}(service)
+		}
+		wg.Wait()
+		time.Sleep(freq)
+	}
+}
+
+// 只执行一次的启动健康检查的函数
+var once sync.Once
+
+func StartHealthCheck() {
+	once.Do(func() {
+		go reg.healthCheck(3 * time.Second)
+	})
 }
 
 // 注册服务的方法

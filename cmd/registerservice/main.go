@@ -11,6 +11,7 @@ import (
 // 服务注册这个服务与其他被注册服务不一样. 服务注册类似于后端的服务, 被注册的服务类似客户端的服务.
 // 这里的逻辑类似于service.service.go中的逻辑.
 func main() {
+	registry.StartHealthCheck()
 	http.Handle("/services", &registry.RegistryService{}) // 注册服务注册处理器
 
 	ctx, cancel := context.WithCancel(context.Background())

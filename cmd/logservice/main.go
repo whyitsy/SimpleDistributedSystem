@@ -18,6 +18,7 @@ func main() {
 		ServiceURL:       serviceAddress,
 		RequiredServices: []registry.ServiceName{},
 		ServiceUpdateURL: serviceAddress + "/services",
+		HeartbeatURL:     serviceAddress + "/health",
 	}
 	ctx, err := services.Start(context.Background(), host, port, re, log.RegisterHandlers)
 	if err != nil {

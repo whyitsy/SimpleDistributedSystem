@@ -16,12 +16,21 @@ import (
 // 该方法会对服务注册中心发送一个HTTP.POST请求进行服务注册.
 
 func RegisterService(re RegistrationEntry) error {
-	// 在注册服务时, 添加更新Provider的逻辑.
+	// 在注册服务时, 添加回调接收服务更新通知的handler.
 	serviceUpdateUrl, err := url.Parse(re.ServiceUpdateURL)
 	if err != nil {
 		return fmt.Errorf("服务更新URL解析失败: %s, 错误: %v", re.ServiceUpdateURL, err)
 	}
 	http.Handle(serviceUpdateUrl.Path, new(serviceUpdateHandler))
+	// 添加健康检查的 handler
+	heartbeatUrl, err := url.Parse(re.HeartbeatURL)
+	if err != nil {
+		return fmt.Errorf("服务更新URL解析失败: %s, 错误: %v", re.HeartbeatURL, err)
+	}
+	http.HandleFunc(heartbeatUrl.Path, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		// 可以返回一些服务的状态信息, 这里简单起见, 只返回200状态码.
+	})
 	// POST请求需要一个io.Reader类型的body参数.可以这样构造:
 	// buffer是一个实现了io.Writer接口和io.Reader接口的类型.使用json.Encoder可以直接将结构体编码到buffer中.
 	// 然后将buffer作为POST请求的body参数传递, 作为io.Reader使用.
@@ -45,24 +54,6 @@ func RegisterService(re RegistrationEntry) error {
 		return fmt.Errorf("服务注册失败, 状态码: %d, 服务: %s:%s", res.StatusCode, re.ServiceName, re.ServiceURL)
 	}
 	return nil
-}
-
-// 更新 Provider的http逻辑
-type serviceUpdateHandler struct{}
-
-func (s *serviceUpdateHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "方法不允许", http.StatusMethodNotAllowed)
-		return
-	}
-	var p patch
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&p); err != nil {
-		http.Error(w, "请求体解析失败", http.StatusBadRequest)
-		return
-	}
-	fmt.Printf("接收到服务更新通知: %+v\n", p)
-	prov.Update(p)
 }
 
 func DeregisterService(re RegistrationEntry) error {
@@ -95,12 +86,29 @@ func DeregisterService(re RegistrationEntry) error {
 	return nil
 }
 
+// 更新 Provider的http逻辑
+type serviceUpdateHandler struct{}
+
+func (s *serviceUpdateHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "方法不允许", http.StatusMethodNotAllowed)
+		return
+	}
+	var p patch
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&p); err != nil {
+		http.Error(w, "请求体解析失败", http.StatusBadRequest)
+		return
+	}
+	fmt.Printf("接收到服务更新通知: %+v\n", p)
+	prov.Update(p)
+}
+
 type providers struct {
 	services map[ServiceName][]string
 	mutex    *sync.RWMutex
 }
 
-// Update 发送patch后, 更新本地缓存.
 func (p *providers) Update(pat patch) {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
